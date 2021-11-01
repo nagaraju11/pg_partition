@@ -1,13 +1,10 @@
-create function create_sub_partiton(
+create function naga.create_sub_partiton(
      p_parent_table text,
       p_part_col text,--partition COLUMN
       p_type text,  -- partition type range,list, hash
       p_interval text, --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'a,b,c,d', maduler = 5,10,20 etc
       p_fk_cols text, -- constraint COLUMN
-     -- p_uk_cols text:='id';
-     -- p_constraint_type text[] DEFAULT NULL  -- constraint type PK,UK
       p_premake int-- no of partition tables to be created
-
 )
 RETURNS void 
     LANGUAGE plpgsql 
@@ -34,12 +31,7 @@ DECLARE
       v_agg text[];
       v_list text;
       v_sql_default text;
-
-      --p_inherit_fk boolean DEFAULT true
-      --p_epoch text DEFAULT 'none'
-     -- p_upsert text DEFAULT ''
-      --p_publications text[] DEFAULT NULL
-      --start_date TIMESTAMP := '2021-10-27 00:00:00' ;
+      v_sql_default_pk  text;
 BEGIN
 
 
@@ -76,12 +68,14 @@ END IF;
 
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
+v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
+                ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
            IF  p_interval = 'daily' THEN
 
-               EXECUTE  v_sql_default;
+               
                 -- for backlog date
                SELECT current_date - interval '2 day' into v_start_time;
 
@@ -89,8 +83,10 @@ IF p_type = 'range' THEN
                      end_date= v_start_time+1;
                          r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MMDD')::text;
                          IF p_fk_cols is null then
+                            EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,v_start_time,end_date);
                          ELSE
+                            EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
                                               FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
                          END IF;
@@ -98,15 +94,16 @@ IF p_type = 'range' THEN
                end loop;
             ELSIF p_interval = 'monthly' THEN
 
-               EXECUTE  v_sql_default;
                 -- for backlog date
                v_start_time=to_char(v_start_time,'YYYY-MM-01');
                for v_k in 1..p_premake loop
                      end_date= v_start_time + interval '1 month';
                          r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MM_DD')::text;
                          IF p_fk_cols is null then
+                            EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,v_start_time,end_date);
                          ELSE
+                            EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
                                               FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
                          END IF;
@@ -118,16 +115,17 @@ IF p_type = 'range' THEN
         ELSE     -- id
             v_intervel := p_interval::int;
             num_s = v_intervel;
-            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
-                ,v_parent_tablename, p_parent_table);
+            
             for v_k in 1..p_premake loop
                 num_e=num_s+v_intervel;
                 r2 = v_parent_tablename||'_p'||num_s;
 
                 IF p_fk_cols is null then
+                EXECUTE  v_sql_default;
                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
                 ,v_parent_schema,r2, p_parent_table,num_s,num_e);
                 ELSE
+                EXECUTE  v_sql_default_pk;
                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
                 ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
                 ,v_parent_schema,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
@@ -139,16 +137,17 @@ IF p_type = 'range' THEN
         END IF; -- range  type end
 
 ELSIF  p_type = 'list' THEN
-   EXECUTE  v_sql_default;
-   -- EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default' ,v_parent_tablename, p_parent_table);
+
     v_agg = string_to_array(p_interval,',');
     
     IF p_fk_cols is null THEN
+        EXECUTE  v_sql_default;
         foreach v_list in array v_agg loop
             v_parent_tablename := p_parent_table||'_p_'||v_list;
             EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list);
         END LOOP;
     ELSE 
+       EXECUTE  v_sql_default;
        foreach v_list in array v_agg loop
             v_parent_tablename := p_parent_table||'_p_'||v_list;
             EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
