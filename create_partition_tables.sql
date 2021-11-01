@@ -28,12 +28,12 @@ DECLARE
       p_parent_table text:='naga.test6';
       p_part_col text:='region' ;--partition COLUMN
       p_type text:='list';  -- partition type range,list, hash
-      p_interval text:='north,west,south,west' ; --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'a,b,c,d', maduler = 5,10,20 etc
+      p_interval text:='west,north,south,east' ; --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
       p_fk_cols text:='id'; -- constraint COLUMN
       p_uk_cols text:='id';
      -- p_constraint_type text[] DEFAULT NULL  -- constraint type PK,UK
       p_premake int:=20 ;-- no of partition tables to be created
-      p_sub_partition BOOLEAN:= false;
+      p_sub_partition BOOLEAN:= true;
       p_sub_part_col text:='id';
       p_sub_part_type text:='range';
       p_sub_part_interval text:='10000';
@@ -151,24 +151,32 @@ IF p_type = 'range' THEN
 
 ELSIF  p_type = 'list' THEN
   
-   -- EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default' ,v_parent_tablename, p_parent_table);
     v_agg = string_to_array(p_interval,',');
-    
-    IF p_fk_cols is null THEN
-        EXECUTE  v_sql_default;
+    IF p_sub_partition is false THEN
+        IF p_fk_cols is null THEN
+            EXECUTE  v_sql_default;
+            foreach v_list in array v_agg loop
+                v_parent_tablename := p_parent_table||'_p_'||v_list;
+                EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list);
+            END LOOP;
+        ELSE  
+            EXECUTE  v_sql_default_pk;
         foreach v_list in array v_agg loop
-            v_parent_tablename := p_parent_table||'_p_'||v_list;
-            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list);
-        END LOOP;
-    ELSE  
-        EXECUTE  v_sql_default_pk;
-       foreach v_list in array v_agg loop
-            v_parent_tablename := p_parent_table||'_p_'||v_list;
-            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
+                v_parent_tablename := p_parent_table||'_p_'||v_list;
+                EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
 
-        END LOOP;
+            END LOOP;
+        END IF;
+    ELSE
+         foreach v_list in array v_agg loop
+         v_parent_tablename := p_parent_table||'_p_'||v_list;
+         EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s  FOR VALUES IN (''%s'') PARTITION BY RANGE (%s)'
+         ,v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list,p_sub_part_col);
+         execute FORMAT('select create_sub_partiton(''%s'',''%s'',''%s'',''%s'',''%s'',%s)'
+         , v_parent_tablename ,p_sub_part_col,p_sub_part_type ,p_sub_part_interval ,p_fk_cols,p_premake);
+                
+                end loop;
     END IF;
-
 
 ELSIF  p_type = 'hash' THEN
         v_k := p_interval::int;
@@ -180,7 +188,6 @@ ELSIF  p_type = 'hash' THEN
 
                 end loop;
             ELSE
-                EXECUTE  v_sql_default;
                 for num_s in 0..v_k-1 loop
                 execute FORMAT('CREATE TABLE IF NOT EXISTS %s_%s PARTITION OF %s 
                 FOR VALUES WITH (modulus %s, remainder %s)',v_parent_tablename,num_s,p_parent_table,v_k,num_s);
@@ -203,5 +210,3 @@ END IF;
 
 END;
 $BODY$;
-
-
