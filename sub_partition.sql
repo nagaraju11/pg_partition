@@ -84,11 +84,11 @@ IF p_type = 'range' THEN
                          r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MMDD')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
-                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,v_start_time,end_date);
+                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
                          ELSE
                             EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
-                                              FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
+                                              FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
                          END IF;
                      v_start_time=end_date;
                end loop;
@@ -101,11 +101,11 @@ IF p_type = 'range' THEN
                          r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MM_DD')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
-                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,v_start_time,end_date);
+                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
                          ELSE
                             EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
-                                              FOR VALUES FROM (''%s'') TO (''%s'')',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
+                                              FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
                          END IF;
                      v_start_time=end_date;
                end loop;
@@ -144,13 +144,13 @@ ELSIF  p_type = 'list' THEN
         EXECUTE  v_sql_default;
         foreach v_list in array v_agg loop
             v_parent_tablename := p_parent_table||'_p_'||v_list;
-            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list);
+            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (%L)',v_parent_tablename,p_parent_table,v_list);
         END LOOP;
     ELSE 
        EXECUTE  v_sql_default;
        foreach v_list in array v_agg loop
             v_parent_tablename := p_parent_table||'_p_'||v_list;
-            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (''%s'')',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
+            EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (%L)',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
 
         END LOOP;
     END IF;
