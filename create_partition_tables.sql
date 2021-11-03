@@ -1,12 +1,26 @@
+
+/*
+DROP TABLE IF  EXISTS public.actvty_details;
+
+CREATE TABLE IF NOT EXISTS public.actvty_details
+(
+    actvty_id integer,
+    actvty_name text COLLATE pg_catalog."default",
+    actvty_rgn text COLLATE pg_catalog."default",
+    actvty_dt date
+) PARTITION BY RANGE (actvty_id);
+
+
+*/
 DO $BODY$
 DECLARE
 
       p_parent_table text:='public.actvty_details'; -- parent table
-      p_part_col text:='actvty_dt' ; --partition COLUMN
+      p_part_col text:='actvty_id' ; --partition COLUMN
       p_type text:='range';  -- partition type range,list, hash
-      p_interval text:='monthly' ; --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
-      p_fk_cols text:=null; -- constraint COLUMN, null or 'id'
+      p_interval text:='1000' ; --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
       p_premake int:=4;-- no of partition tables to be created
+	  p_fk_cols text Default null; -- constraint COLUMN, null or 'id'
 /******* sub-partition ******************/    
       p_sub_partition BOOLEAN:= true;
       p_sub_part_col text:='actvty_rgn'; --partition COLUMN
@@ -134,10 +148,10 @@ IF p_type = 'range' THEN
                              r1  := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                              
                               --  EXECUTE  v_sql_default_pk;
-							 
+                             
                                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                                                   FOR VALUES FROM (%L) TO (%L) PARTITION BY %s (%s)',r1, p_parent_table,v_start_time,end_date,p_sub_part_type,p_sub_part_col);
-								 execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
+                                 execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
                                                                                     , r1 
                                                                                     ,p_sub_part_col
                                                                                     ,p_sub_part_type 
@@ -159,23 +173,47 @@ IF p_type = 'range' THEN
             v_intervel := p_interval::int;
             num_s = v_intervel;
             
-            for v_k in 1..p_premake loop
-                num_e=num_s+v_intervel;
-                r2 = v_parent_tablename||'_p'||num_s;
+            IF p_sub_partition IS FALSE THEN
+                    for v_k in 1..p_premake loop
+                        num_e=num_s+v_intervel;
+                        r2 = p_parent_table||'_p'||num_s;
 
-                IF p_fk_cols is null then
-                EXECUTE  v_sql_default;
-                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,r2, p_parent_table,num_s,num_e);
-                ELSE
-                EXECUTE  v_sql_default_pk;
-                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
-                ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
-                END IF;
+                        IF p_fk_cols is null then
+                        EXECUTE  v_sql_default;
+                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
+                        ,v_parent_schema,r2, p_parent_table,num_s,num_e);
+                        ELSE
+                        EXECUTE  v_sql_default_pk;
+                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
+                        ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
+                        ,v_parent_schema,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
+                        END IF;
 
-                num_s=num_e;
-         end loop;
+                        num_s=num_e;
+                 end loop;
+            ELSE
+
+                        for v_k in 1..p_premake loop
+                        num_e=num_s+v_intervel;
+                        r2 = p_parent_table ||'_p'||num_s;
+
+                        -- EXECUTE  v_sql_default;
+                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%s) TO (%s) PARTITION BY %s (%s)'
+                        ,r2, p_parent_table,num_s,num_e,p_sub_part_type,p_sub_part_col);
+
+                        execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
+                        , r2 
+                        ,p_sub_part_col
+                        ,p_sub_part_type 
+                        ,p_sub_part_interval 
+                        ,p_fk_cols
+                        ,p_premake);
+        
+
+                        num_s=num_e;
+                 end loop;
+
+            END IF;
 
         END IF; -- range  type end
 
