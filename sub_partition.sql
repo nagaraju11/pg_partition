@@ -1,4 +1,4 @@
-create function naga.create_sub_partiton(
+create function create_sub_partiton(
      p_parent_table text,
       p_part_col text,--partition COLUMN
       p_type text,  -- partition type range,list, hash
