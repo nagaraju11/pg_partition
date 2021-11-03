@@ -159,13 +159,13 @@ ELSIF  p_type = 'list' THEN
         IF p_fk_cols is null THEN
             EXECUTE  v_sql_default;
             foreach v_list in array v_agg loop
-                v_parent_tablename := p_parent_table||'_p_'||v_list;
+                v_parent_tablename := p_parent_table||'_p_'||lower(v_list);
                 EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s FOR VALUES IN (%L)',v_parent_tablename,p_parent_table,v_list);
             END LOOP;
         ELSE  
             EXECUTE  v_sql_default_pk;
         foreach v_list in array v_agg loop
-                v_parent_tablename := p_parent_table||'_p_'||v_list;
+                v_parent_tablename := p_parent_table||'_p_'||lower(v_list);
                 EXECUTE FORMAT('CREATE TABLE IF NOT exists %s PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s)) FOR VALUES IN (%L)',v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list);
 
             END LOOP;
@@ -173,9 +173,7 @@ ELSIF  p_type = 'list' THEN
     ELSE
          foreach v_list in array v_agg loop
          v_parent_tablename := p_parent_table||'_p_'||lower(v_list);
-		 raise info '%',v_parent_tablename;
-		  raise info '%',v_list;
-		  /*
+	
          EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s  FOR VALUES IN (%L) PARTITION BY RANGE (%s)'
          ,v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list,p_sub_part_col);
          
@@ -186,7 +184,6 @@ ELSIF  p_type = 'list' THEN
 						,p_sub_part_interval 
 						,p_fk_cols
 						,p_premake);
-                */
                 end loop;
 				
     END IF;
