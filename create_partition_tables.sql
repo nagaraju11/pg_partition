@@ -1,5 +1,27 @@
+ 
 DO $BODY$
 DECLARE
+
+      p_parent_table text:='public.test6';
+      p_part_col text:='region' ; --partition COLUMN
+      p_type text:='list';  -- partition type range,list, hash
+      p_interval text:='SE,ne,nw,west,north,south,east' ; --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
+      p_fk_cols text:='id'; -- constraint COLUMN
+      p_uk_cols text:='id';
+      p_premake int:=20 ;-- no of partition tables to be created
+      p_sub_partition BOOLEAN:= true;
+      p_sub_part_col text:='id';
+      p_sub_part_type text:='range';
+      p_sub_part_interval text:='10000';
+	  
+	  
+/**********************************************************************/		  
+/**********************************************************************/	  
+/*** Dont not chnage below untill unless you know what to do :) *******/	 
+/**********************************************************************/	 
+/**********************************************************************/	
+
+
 	  num_s bigint;
       num_e bigint;
 	  r1 text;
@@ -22,27 +44,7 @@ DECLARE
       v_list text;
       v_sql_default text;
       v_sql_default_pk text;
----
---
---
-      p_parent_table text:='naga.test6';
-      p_part_col text:='region' ;--partition COLUMN
-      p_type text:='list';  -- partition type range,list, hash
-      p_interval text:='west,north,south,east' ; --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
-      p_fk_cols text:='id'; -- constraint COLUMN
-      p_uk_cols text:='id';
-     -- p_constraint_type text[] DEFAULT NULL  -- constraint type PK,UK
-      p_premake int:=20 ;-- no of partition tables to be created
-      p_sub_partition BOOLEAN:= true;
-      p_sub_part_col text:='id';
-      p_sub_part_type text:='range';
-      p_sub_part_interval text:='10000';
       
-      --p_inherit_fk boolean DEFAULT true
-      --p_epoch text DEFAULT 'none'
-     -- p_upsert text DEFAULT ''
-      --p_publications text[] DEFAULT NULL
-      --start_date TIMESTAMP := '2021-10-27 00:00:00' ;
 BEGIN
 
 
@@ -58,6 +60,7 @@ LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
+-- set search_path = 'naga';
 SELECT CASE
             WHEN typname IN ('timestamptz', 'timestamp', 'date') THEN
                 'time'
@@ -88,11 +91,12 @@ IF p_type = 'range' THEN
 
                
                 -- for backlog date
-               SELECT current_date - interval '2 day' into v_start_time;
-
+               -- SELECT current_date - interval '2 day' into v_start_time;
+				SELECT current_date into v_start_time;
+				
                for v_k in 1..p_premake loop
                      end_date= v_start_time+1;
-                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MMDD')::text;
+                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MM_DD')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
@@ -110,7 +114,7 @@ IF p_type = 'range' THEN
                v_start_time=to_char(v_start_time,'YYYY-MM-01');
                for v_k in 1..p_premake loop
                      end_date= v_start_time + interval '1 month';
-                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MM_DD')::text;
+                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
@@ -168,13 +172,23 @@ ELSIF  p_type = 'list' THEN
         END IF;
     ELSE
          foreach v_list in array v_agg loop
-         v_parent_tablename := p_parent_table||'_p_'||v_list;
+         v_parent_tablename := p_parent_table||'_p_'||lower(v_list);
+		 raise info '%',v_parent_tablename;
+		  raise info '%',v_list;
+		  /*
          EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s  FOR VALUES IN (%L) PARTITION BY RANGE (%s)'
          ,v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list,p_sub_part_col);
-         execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
-         , v_parent_tablename ,p_sub_part_col,p_sub_part_type ,p_sub_part_interval ,p_fk_cols,p_premake);
-                
+         
+		 execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
+         				, v_parent_tablename 
+						,p_sub_part_col
+						,p_sub_part_type 
+						,p_sub_part_interval 
+						,p_fk_cols
+						,p_premake);
+                */
                 end loop;
+				
     END IF;
 
 ELSIF  p_type = 'hash' THEN
