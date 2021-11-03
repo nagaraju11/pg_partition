@@ -58,7 +58,6 @@ LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
 
-set search_path = 'naga';
 SELECT CASE
             WHEN typname IN ('timestamptz', 'timestamp', 'date') THEN
                 'time'
