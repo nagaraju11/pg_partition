@@ -1,4 +1,7 @@
 
+--select create_partiton ( 'public.actvty_details','actvty_id' ,'range','1000',4,null);
+
+
 create or replace function create_partiton(
       p_parent_table text, -- parent table
       p_part_col text, --partition COLUMN
@@ -6,10 +9,10 @@ create or replace function create_partiton(
       p_interval text, --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
       p_premake int,-- no of partition tables to be created
 	  p_fk_cols text, -- constraint COLUMN, null or 'id'
-      p_sub_partition BOOLEAN ,
-      p_sub_part_col text, --partition COLUMN
-      p_sub_part_type text,  -- partition type range,list, hash
-      p_sub_part_interval text
+      p_sub_partition BOOLEAN default false,
+      p_sub_part_col text default NULL, --partition COLUMN
+      p_sub_part_type text default NULL,  -- partition type range,list, hash
+      p_sub_part_interval text default NULL
 )
 RETURNS BOOLEAN 
     LANGUAGE plpgsql 
@@ -135,6 +138,7 @@ IF p_type = 'range' THEN
                              r1 := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                              IF p_fk_cols is null then
                                 EXECUTE  v_sql_default;
+							
                                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
                              ELSE
                                 EXECUTE  v_sql_default_pk;
@@ -183,13 +187,13 @@ IF p_type = 'range' THEN
 
                         IF p_fk_cols is null then
                         EXECUTE  v_sql_default;
-                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
-                        ,v_parent_schema,r2, p_parent_table,num_s,num_e);
+                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
+                        ,r2, p_parent_table,num_s,num_e);
                         ELSE
                         EXECUTE  v_sql_default_pk;
-                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
+                        EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                         ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
-                        ,v_parent_schema,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
+                        ,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
                         END IF;
 
                         num_s=num_e;
