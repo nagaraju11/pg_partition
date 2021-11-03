@@ -1,20 +1,21 @@
 
-/*
-DROP TABLE IF  EXISTS public.actvty_details;
-
-CREATE TABLE IF NOT EXISTS public.actvty_details
-(
-    actvty_id integer,
-    actvty_name text COLLATE pg_catalog."default",
-    actvty_rgn text COLLATE pg_catalog."default",
-    actvty_dt date
-) PARTITION BY RANGE (actvty_id);
-
-
-*/
-DO $BODY$
+create or replace function create_partiton(
+      p_parent_table text, -- parent table
+      p_part_col text, --partition COLUMN
+      p_type text, -- partition type range,list, hash
+      p_interval text, --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
+      p_premake int,-- no of partition tables to be created
+	  p_fk_cols text, -- constraint COLUMN, null or 'id'
+      p_sub_partition BOOLEAN ,
+      p_sub_part_col text, --partition COLUMN
+      p_sub_part_type text,  -- partition type range,list, hash
+      p_sub_part_interval text
+)
+RETURNS BOOLEAN 
+    LANGUAGE plpgsql 
+    AS $$
 DECLARE
-
+/*
       p_parent_table text:='public.actvty_details'; -- parent table
       p_part_col text:='actvty_id' ; --partition COLUMN
       p_type text:='range';  -- partition type range,list, hash
@@ -26,6 +27,8 @@ DECLARE
       p_sub_part_col text:='actvty_rgn'; --partition COLUMN
       p_sub_part_type text:='list';  -- partition type range,list, hash
       p_sub_part_interval text:='E,NE,N,NW,W,SW,S,SE';
+	  
+	  */
 /**********************************************************************/          
 /**********************************************************************/      
 /*** Dont not chnage below untill unless you know what to do :) *******/     
@@ -284,4 +287,4 @@ END IF;
 
 
 END;
-$BODY$;
+$$;
