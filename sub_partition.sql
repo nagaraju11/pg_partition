@@ -1,4 +1,4 @@
-create function create_sub_partiton(
+create or replace function create_sub_partiton(
      p_parent_table text,
       p_part_col text,--partition COLUMN
       p_type text,  -- partition type range,list, hash
@@ -82,7 +82,7 @@ IF p_type = 'range' THEN
 
                for v_k in 1..p_premake loop
                      end_date= v_start_time+1;
-                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'MM_DD')::text;
+                         r1 := p_parent_table||'_p'||to_char(v_start_time,'MM_DD')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
@@ -99,7 +99,7 @@ IF p_type = 'range' THEN
                v_start_time=to_char(v_start_time,'YYYY-MM-01');
                for v_k in 1..p_premake loop
                      end_date= v_start_time + interval '1 month';
-                         r1 := v_parent_tablename||'_p'||to_char(v_start_time,'YYYY_MM')::text;
+                         r1 := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
@@ -119,7 +119,7 @@ IF p_type = 'range' THEN
             
             for v_k in 1..p_premake loop
                 num_e=num_s+v_intervel;
-                r2 = v_parent_tablename||'_p'||num_s;
+                r2 = p_parent_table||'_p'||num_s;
 
                 IF p_fk_cols is null then
                 EXECUTE  v_sql_default;
