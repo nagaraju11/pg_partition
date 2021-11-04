@@ -77,8 +77,8 @@ IF p_type = 'range' THEN
 
                
                 -- for backlog date
-               --SELECT current_date - interval '2 day' into v_start_time;
-			   SELECT current_date  into v_start_time;
+               SELECT current_date - interval '2 day' into v_start_time;
+			   --SELECT current_date  into v_start_time;
 
                for v_k in 1..p_premake loop
                      end_date= v_start_time+1;
@@ -102,7 +102,9 @@ IF p_type = 'range' THEN
                          r1 := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
-                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
+                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)'
+                            ,r1, p_parent_table,v_start_time,end_date);
+                            
                          ELSE
                             EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
@@ -176,4 +178,5 @@ END IF;
 
 
 END;
+
 $$;
