@@ -1,7 +1,3 @@
-
---select create_partiton ( 'public.actvty_details','actvty_id' ,'range','1000',4,null);
-
-
 create or replace function create_partiton(
       p_parent_table text, -- parent table
       p_part_col text, --partition COLUMN
@@ -42,23 +38,25 @@ DECLARE
       r1 text;
       r2 text;
       chk_cond text;
+	  chk_boolean boolean;
       c_table TEXT;
       c_table1 text;
       m_table1 text;
       end_date date;
       v_k int;
       v_start_time date;
-      v_parent_schema                 text;
-      v_parent_tablename              text; 
-      v_parent_tablespace             text;
+      v_parent_schema   text;
+      v_parent_tablename  text; 
+      v_parent_tablespace   text;
       v_unlogged             text;
-      v_control_type                  text;
-      v_control_exact_type            text;
+      v_control_type         text;
+      v_control_exact_type    text;
       v_intervel int;
       v_agg text[];
       v_list text;
       v_sql_default text;
       v_sql_default_pk text;
+	  
       
 BEGIN
 
@@ -74,6 +72,7 @@ JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
+
 
 
 SELECT CASE
@@ -95,10 +94,45 @@ IF v_parent_tablename IS NULL THEN
             RAISE EXCEPTION '42P01 : Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
 END IF;
 
+
+select partition_key into chk_cond from (
+select c.relnamespace::regnamespace::text as schema,
+       c.relname as table_name, 
+       case 
+	   when pg_get_partkeydef(c.oid)  like 'RANGE%' then
+	   'range'
+	   when pg_get_partkeydef(c.oid)  like 'LIST%' then
+	   'list'
+	   when pg_get_partkeydef(c.oid)  like 'HASH%' then
+	   'hash'
+	   END as partition_key
+from   pg_class c
+where  c.relkind = 'p') as dt
+where schema = v_parent_schema::name
+and table_name = v_parent_tablename::name ;
+
+
+IF lower(p_type) != lower(chk_cond) then
+RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values must be %.!',upper(chk_cond),chk_cond;
+end if;
+
+
+
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
 v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
                 ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
+
+
+IF v_control_type = 'date' AND p_interval not in ('daily', 'monthly','yearly') then
+RAISE EXCEPTION 'This is date range partition. Accepatable interval values for p_interval : daily, monthly,yearly';
+end if;
+
+IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
+RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
+end if;
+
+
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
@@ -125,7 +159,6 @@ IF p_type = 'range' THEN
             
             ELSIF p_interval = 'monthly' THEN
 
-               
                 -- for backlog date
                 SELECT current_date - interval '2 month' into v_start_time;
                 
@@ -287,8 +320,6 @@ ELSIF  p_type = 'hash' THEN
 
         END IF;
 END IF;
-
-
 
 END;
 $$;
