@@ -4,13 +4,13 @@ create or replace function create_partiton(
       p_type text, -- partition type range,list, hash
       p_interval text, --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
       p_premake int,-- no of partition tables to be created
-	  p_fk_cols text, -- constraint COLUMN, null or 'id'
+	  p_fk_cols text default NULL, -- constraint COLUMN, null or 'id'
       p_sub_partition BOOLEAN default false,
       p_sub_part_col text default NULL, --partition COLUMN
       p_sub_part_type text default NULL,  -- partition type range,list, hash
       p_sub_part_interval text default NULL
 )
-RETURNS BOOLEAN 
+RETURNS void 
     LANGUAGE plpgsql 
     AS $$
 DECLARE
@@ -28,11 +28,7 @@ DECLARE
       p_sub_part_interval text:='E,NE,N,NW,W,SW,S,SE';
 	  
 	  */
-/**********************************************************************/          
-/**********************************************************************/      
-/*** Dont not chnage below untill unless you know what to do :) *******/     
-/**********************************************************************/     
-/**********************************************************************/    
+/**********************************************************************/             
       num_s bigint;
       num_e bigint;
       r1 text;
@@ -99,16 +95,19 @@ END IF;
 select partition_type,partition_key into chk_cond,v_partition_col from (
 select c.relnamespace::regnamespace::text as schema,
        c.relname as table_name, 
-	   split_part(pg_get_partkeydef(c.oid), '(', 1) as partition_type,
+	   TRIM(split_part(pg_get_partkeydef(c.oid), '(', 1)) as partition_type,
 	   substring(pg_get_partkeydef(c.oid), '\((.+)\)') partition_key
 from   pg_class c
 where  c.relkind = 'p') as dt
 where schema = v_parent_schema::name
 and table_name = v_parent_tablename::name ;
 
+chk_cond:=lower(chk_cond);
+p_type:=lower(p_type);
 
-IF lower(p_type) != lower(chk_cond) then
-RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values must be %.!',upper(chk_cond),chk_cond;
+IF p_type not like chk_cond  then
+
+RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values %must be %.!',chk_cond,chk_cond,p_type;
 end if;
 
 
@@ -306,6 +305,7 @@ ELSIF  p_type = 'hash' THEN
         ELSE
                 for num_s in 0..v_k-1 loop
                 c_table :=v_parent_schema||'.'||v_parent_tablename||'_'||num_s;
+
                 EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s FOR VALUES WITH (modulus %s, remainder %s) PARTITION BY %s (%s)'
                                                    ,c_table,p_parent_table,v_k,num_s,p_sub_part_type,p_sub_part_col);
                 execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
@@ -318,6 +318,3 @@ END IF;
 
 END;
 $$;
-
--- select create_partiton ( 'public.actvty_details_jh','actvty_dt' ,'list','dalily',4,null);
-
