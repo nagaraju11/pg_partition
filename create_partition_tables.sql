@@ -1,35 +1,26 @@
-create or replace function create_partiton(
-      p_parent_table text, -- parent table
-      p_part_col text, --partition COLUMN
-      p_type text, -- partition type range,list, hash
-      p_interval text, --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
-      p_premake int,-- no of partition tables to be created
-	  p_fk_cols text default NULL, -- constraint COLUMN, null or 'id'
-      p_sub_partition BOOLEAN default false,
-      p_sub_part_col text default NULL, --partition COLUMN
-      p_sub_part_type text default NULL,  -- partition type range,list, hash
-      p_sub_part_interval text default NULL
-)
-RETURNS void 
-    LANGUAGE plpgsql 
-    AS $$
+-- FUNCTION: public.create_partiton(text, text, text, text, integer, text, boolean, text, text, text)
+
+-- DROP FUNCTION IF EXISTS public.create_partiton(text, text, text, text, integer, text, boolean, text, text, text);
+
+CREATE OR REPLACE FUNCTION public.create_partiton(
+	p_parent_table text,
+	p_part_col text,
+	p_type text,
+	p_interval text,
+	p_premake integer,
+	p_fk_cols text DEFAULT NULL::text,
+	p_sub_partition boolean DEFAULT false,
+	p_sub_part_col text DEFAULT NULL::text,
+	p_sub_part_type text DEFAULT NULL::text,
+	p_sub_part_interval text DEFAULT NULL::text)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
 DECLARE
-/*
-      p_parent_table text:='public.actvty_details'; -- parent table
-      p_part_col text:='actvty_id' ; --partition COLUMN
-      p_type text:='range';  -- partition type range,list, hash
-      p_interval text:='1000' ; --time/date:  daily, monthly,yearly , id : 10,1000 any range, list = 'west,north,south,east', maduler = 5,10,20 etc
-      p_premake int:=4;-- no of partition tables to be created
-	  p_fk_cols text Default null; -- constraint COLUMN, null or 'id'
-/******* sub-partition ******************/    
-      p_sub_partition BOOLEAN:= true;
-      p_sub_part_col text:='actvty_rgn'; --partition COLUMN
-      p_sub_part_type text:='list';  -- partition type range,list, hash
-      p_sub_part_interval text:='E,NE,N,NW,W,SW,S,SE';
-	  
-	  */
-/**********************************************************************/             
-      num_s bigint;
+
+     num_s bigint;
       num_e bigint;
       r1 text;
       r2 text;
@@ -57,7 +48,6 @@ DECLARE
       
 BEGIN
 
-
 v_start_time := current_date;
 
 -- check tables existence
@@ -69,8 +59,6 @@ JOIN pg_catalog.pg_namespace n ON c.relnamespace = n.oid
 LEFT OUTER JOIN pg_catalog.pg_tablespace t ON c.reltablespace = t.oid
 WHERE n.nspname = split_part(p_parent_table, '.', 1)::name
 AND c.relname = split_part(p_parent_table, '.', 2)::name;
-
-
 
 SELECT CASE
             WHEN typname IN ('timestamptz', 'timestamp', 'date') THEN
@@ -91,7 +79,6 @@ IF v_parent_tablename IS NULL THEN
             RAISE EXCEPTION '42P01 : Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
 END IF;
 
-
 select partition_type,partition_key into chk_cond,v_partition_col from (
 select c.relnamespace::regnamespace::text as schema,
        c.relname as table_name, 
@@ -110,13 +97,10 @@ IF p_type not like chk_cond  then
 RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values %must be %.!',chk_cond,chk_cond,p_type;
 end if;
 
-
-
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
 v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
                 ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
-
 
 IF v_control_type = 'date' AND p_interval not in ('daily', 'monthly','yearly') then
 RAISE EXCEPTION 'This is date range partition. Accepatable interval values for p_interval : daily, monthly,yearly';
@@ -125,8 +109,6 @@ end if;
 IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
 RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
 end if;
-
-
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
@@ -181,7 +163,7 @@ IF p_type = 'range' THEN
                          end_date= v_start_time + interval '1 month';
                              r1  := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                              
-                              --  EXECUTE  v_sql_default_pk;
+                                EXECUTE  v_sql_default_pk;
                              
                                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                                                   FOR VALUES FROM (%L) TO (%L) PARTITION BY %s (%s)',r1, p_parent_table,v_start_time,end_date,p_sub_part_type,p_sub_part_col);
@@ -195,7 +177,6 @@ IF p_type = 'range' THEN
                                                                                         
                          v_start_time=end_date;
                    end loop;
-
 
                 END IF;
                    
@@ -317,4 +298,4 @@ ELSIF  p_type = 'hash' THEN
 END IF;
 
 END;
-$$;
+$BODY$;
