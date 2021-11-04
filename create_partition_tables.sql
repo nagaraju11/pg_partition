@@ -94,7 +94,7 @@ p_type:=lower(p_type);
 
 IF p_type not like chk_cond  then
 
-RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values %must be %.!',chk_cond,chk_cond,p_type;
+RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values must be %.!!',chk_cond,chk_cond;
 end if;
 
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
