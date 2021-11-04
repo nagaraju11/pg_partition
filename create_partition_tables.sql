@@ -29,13 +29,17 @@ DECLARE
 	  
 	  */
 /**********************************************************************/          
-  
+/**********************************************************************/      
+/*** Dont not chnage below untill unless you know what to do :) *******/     
+/**********************************************************************/     
+/**********************************************************************/    
       num_s bigint;
       num_e bigint;
       r1 text;
       r2 text;
       chk_cond text;
 	  chk_boolean boolean;
+	  v_partition_col text;
       c_table TEXT;
       c_table1 text;
       m_table1 text;
@@ -92,17 +96,11 @@ IF v_parent_tablename IS NULL THEN
 END IF;
 
 
-select partition_key into chk_cond from (
+select partition_type,partition_key into chk_cond,v_partition_col from (
 select c.relnamespace::regnamespace::text as schema,
        c.relname as table_name, 
-       case 
-	   when pg_get_partkeydef(c.oid)  like 'RANGE%' then
-	   'range'
-	   when pg_get_partkeydef(c.oid)  like 'LIST%' then
-	   'list'
-	   when pg_get_partkeydef(c.oid)  like 'HASH%' then
-	   'hash'
-	   END as partition_key
+	   split_part(pg_get_partkeydef(c.oid), '(', 1) as partition_type,
+	   substring(pg_get_partkeydef(c.oid), '\((.+)\)') partition_key
 from   pg_class c
 where  c.relkind = 'p') as dt
 where schema = v_parent_schema::name
@@ -320,3 +318,6 @@ END IF;
 
 END;
 $$;
+
+-- select create_partiton ( 'public.actvty_details_jh','actvty_dt' ,'list','dalily',4,null);
+
