@@ -1,14 +1,19 @@
-create or replace function create_sub_partiton(
-     p_parent_table text,
-      p_part_col text,--partition COLUMN
-      p_type text,  -- partition type range,list, hash
-      p_interval text, --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'a,b,c,d', maduler = 5,10,20 etc
-      p_fk_cols text, -- constraint COLUMN
-      p_premake int-- no of partition tables to be created
-)
-RETURNS void 
-    LANGUAGE plpgsql 
-    AS $$
+-- FUNCTION: public.create_sub_partiton(text, text, text, text, text, integer)
+
+-- DROP FUNCTION IF EXISTS public.create_sub_partiton(text, text, text, text, text, integer);
+
+CREATE OR REPLACE FUNCTION public.create_sub_partiton(
+	p_parent_table text,
+	p_part_col text,
+	p_type text,
+	p_interval text,
+	p_fk_cols text,
+	p_premake integer)
+    RETURNS void
+    LANGUAGE 'plpgsql'
+    COST 100
+    VOLATILE PARALLEL UNSAFE
+AS $BODY$
 DECLARE
 	  num_s bigint;
       num_e bigint;
@@ -33,7 +38,6 @@ DECLARE
       v_sql_default text;
       v_sql_default_pk  text;
 BEGIN
-
 
 v_start_time := current_date;
 
@@ -158,7 +162,6 @@ ELSIF  p_type = 'list' THEN
         END LOOP;
     END IF;
 
-
 ELSIF  p_type = 'hash' THEN
         v_k := p_interval::int;
         IF p_fk_cols is not null THEN
@@ -175,8 +178,6 @@ ELSIF  p_type = 'hash' THEN
     END IF;
 END IF;
 
-
-
 END;
 
-$$;
+$BODY$;
