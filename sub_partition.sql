@@ -1,19 +1,14 @@
--- FUNCTION: public.create_sub_partiton(text, text, text, text, text, integer)
-
--- DROP FUNCTION IF EXISTS public.create_sub_partiton(text, text, text, text, text, integer);
-
-CREATE OR REPLACE FUNCTION public.create_sub_partiton(
-	p_parent_table text,
-	p_part_col text,
-	p_type text,
-	p_interval text,
-	p_fk_cols text,
-	p_premake integer)
-    RETURNS void
-    LANGUAGE 'plpgsql'
-    COST 100
-    VOLATILE PARALLEL UNSAFE
-AS $BODY$
+create or replace function create_sub_partiton(
+     p_parent_table text,
+      p_part_col text,--partition COLUMN
+      p_type text,  -- partition type range,list, hash
+      p_interval text, --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'a,b,c,d', maduler = 5,10,20 etc
+      p_fk_cols text, -- constraint COLUMN
+      p_premake int-- no of partition tables to be created
+)
+RETURNS void 
+    LANGUAGE plpgsql 
+    AS $$
 DECLARE
 	  num_s bigint;
       num_e bigint;
@@ -38,6 +33,7 @@ DECLARE
       v_sql_default text;
       v_sql_default_pk  text;
 BEGIN
+
 
 v_start_time := current_date;
 
@@ -74,6 +70,14 @@ v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
 v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
                 ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
+
+IF v_control_type = 'date' AND p_interval not in ('daily', 'monthly','yearly') then
+RAISE EXCEPTION 'This is date range partition. Accepatable interval values for p_interval : daily, monthly,yearly';
+end if;
+
+IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
+RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
+end if; 
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
@@ -162,6 +166,7 @@ ELSIF  p_type = 'list' THEN
         END LOOP;
     END IF;
 
+
 ELSIF  p_type = 'hash' THEN
         v_k := p_interval::int;
         IF p_fk_cols is not null THEN
@@ -178,6 +183,8 @@ ELSIF  p_type = 'hash' THEN
     END IF;
 END IF;
 
+
+
 END;
 
-$BODY$;
+$$;
