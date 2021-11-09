@@ -32,6 +32,7 @@ DECLARE
       v_list text;
       v_sql_default text;
       v_sql_default_pk  text;
+      v_partition_col text;
 BEGIN
 
 
@@ -65,6 +66,24 @@ AND a.attname = p_part_col::name;
 IF v_parent_tablename IS NULL THEN
             RAISE EXCEPTION '42P01 : Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
 END IF;
+
+select partition_type,partition_key into chk_cond,v_partition_col from (
+select c.relnamespace::regnamespace::text as schema,
+       c.relname as table_name, 
+	   TRIM(split_part(pg_get_partkeydef(c.oid), '(', 1)) as partition_type,
+	   substring(pg_get_partkeydef(c.oid), '\((.+)\)') partition_key
+from   pg_class c
+where  c.relkind = 'p') as dt
+where schema = v_parent_schema::name
+and table_name = v_parent_tablename::name ;
+
+chk_cond:=lower(chk_cond);
+p_type:=lower(p_type);
+
+IF p_type not like chk_cond  then
+
+RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values must be %.!!',chk_cond,chk_cond;
+end if;
 
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
