@@ -4,7 +4,9 @@
 Here two steps to create partition using these functions.
 
 1. Create function #`sub_partition.sql`
-2. Execute function #`create_partition_tables.sql` with values.
+2. create function #`create_partition_tables.sql`
+3. call function 
+   select create_partiton ( 'public.test10','name','hash','10',4,null,true,'dt','list','monthly');
 
 ```
       p_parent_table text:='public.actvty_details'; -- parent table
