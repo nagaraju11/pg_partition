@@ -23,8 +23,8 @@ DECLARE
       num_s bigint;
       num_e bigint;
       chk_cond text;
-	  chk_boolean boolean;
-	  v_partition_col text;
+      chk_boolean boolean;
+      v_partition_col text;
       m_table1 text;
       end_date date;
       v_int int;
@@ -107,6 +107,9 @@ IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
 RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
 end if;
 
+IF p_type = 'hash' and  p_interval ~ '^[0-9]+$' != true  then
+RAISE EXCEPTION 'This is HASH partition. Accepatable value''s for p_interval is numeric number. Ex: 5 or 10 or 20 or 30, based how many hash paritioned tables required.';
+end if;
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
