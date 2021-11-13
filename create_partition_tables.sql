@@ -43,13 +43,19 @@ DECLARE
       v_fun_schema text;
       v_sub_func_name text;
 	  v_sub_func_args text;
+      v_stack text; 
+      v_fcesig text;
+      v_function_oid oid;
       
 BEGIN
 
 v_start_time := current_date;
 
-v_fun_schema := CURRENT_SCHEMA;
-
+GET DIAGNOSTICS v_stack = PG_CONTEXT;
+        v_fcesig := substring(v_stack from 'function (.*?) line');
+        v_function_oid := v_fcesig::regprocedure::oid;
+ SELECT routine_schema INTO v_fun_schema FROM information_schema.routines WHERE regexp_replace(specific_name, '^.+?([^_]+)$', '\1')::int = v_function_oid;
+ 
 
 v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
                 ,v_parent_tablename, p_parent_table);  --  create default partition table
@@ -122,10 +128,12 @@ SELECT n.nspname||'.'||p.proname as "Name",
   pg_catalog.pg_get_function_arguments(p.oid) as "Argument_data_types" INTO v_sub_func_name,v_sub_func_args
 FROM pg_catalog.pg_proc p
      LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
-where p.proname = 'create_sub_partiton';
+where p.proname = 'create_sub_partiton' and n.nspname = v_fun_schema::name;
+
 
 IF p_sub_partition is TRUE and v_sub_func_name is null THEN
-RAISE EXCEPTION 'Sub partition function does not exist or created in diffenet schema. create_partiton() and create_sub_partiton() should be exists in same schema';
+RAISE EXCEPTION 'Sub-partition function does not exist or created in diffenet schema. create_partiton() and create_sub_partiton() should be exists and in same schema 
+HINT: Parent function is in  ''%'' schema',v_fun_schema;
 END IF;
 
 
