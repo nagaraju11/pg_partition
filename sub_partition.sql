@@ -12,14 +12,9 @@ RETURNS void
 DECLARE
 	  num_s bigint;
       num_e bigint;
-	  r1 text;
-	  r2 text;
 	  chk_cond text;
-	  c_table TEXT;
-	  c_table1 text;
-	  m_table1 text;
       end_date date;
-      v_k int;
+      v_int int;
       v_start_time date;
       v_parent_schema                 text;
       v_parent_tablename              text; 
@@ -33,6 +28,7 @@ DECLARE
       v_sql_default text;
       v_sql_default_pk  text;
       v_partition_col text;
+      v_new_tablename text;
 BEGIN
 
 
@@ -111,16 +107,16 @@ IF p_type = 'range' THEN
                SELECT current_date - interval '2 day' into v_start_time;
 			   --SELECT current_date  into v_start_time;
 
-               for v_k in 1..p_premake loop
+               for v_int in 1..p_premake loop
                      end_date= v_start_time+1;
-                         r1 := p_parent_table||'_p'||to_char(v_start_time,'MM_DD')::text;
+                         v_new_tablename := p_parent_table||'_p'||to_char(v_start_time,'MM_DD')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
-                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,v_start_time,end_date);
+                            EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)',v_new_tablename, p_parent_table,v_start_time,end_date);
                          ELSE
                             EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
-                                              FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
+                                              FOR VALUES FROM (%L) TO (%L)',v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,v_start_time,end_date);
                          END IF;
                      v_start_time=end_date;
                end loop;
@@ -128,18 +124,18 @@ IF p_type = 'range' THEN
 
                 -- for backlog date
                v_start_time=to_char(v_start_time,'YYYY-MM-01');
-               for v_k in 1..p_premake loop
+               for v_int in 1..p_premake loop
                      end_date= v_start_time + interval '1 month';
-                         r1 := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
+                         v_new_tablename := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                          IF p_fk_cols is null then
                             EXECUTE  v_sql_default;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%L) TO (%L)'
-                            ,r1, p_parent_table,v_start_time,end_date);
+                            ,v_new_tablename, p_parent_table,v_start_time,end_date);
                             
                          ELSE
                             EXECUTE  v_sql_default_pk;
                             EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s ( CONSTRAINT %s_pkey PRIMARY KEY (%s) )
-                                              FOR VALUES FROM (%L) TO (%L)',r1, p_parent_table,r1,p_fk_cols,v_start_time,end_date);
+                                              FOR VALUES FROM (%L) TO (%L)',v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,v_start_time,end_date);
                          END IF;
                      v_start_time=end_date;
                end loop;
@@ -150,19 +146,19 @@ IF p_type = 'range' THEN
             v_intervel := p_interval::int;
             num_s = v_intervel;
             
-            for v_k in 1..p_premake loop
+            for v_int in 1..p_premake loop
                 num_e=num_s+v_intervel;
-                r2 = p_parent_table||'_p'||num_s;
+                v_new_tablename = p_parent_table||'_p'||num_s;
 
                 IF p_fk_cols is null then
                 EXECUTE  v_sql_default;
                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,r2, p_parent_table,num_s,num_e);
+                ,v_parent_schema,v_new_tablename, p_parent_table,num_s,num_e);
                 ELSE
                 EXECUTE  v_sql_default_pk;
                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
                 ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,r2, p_parent_table,r2,p_fk_cols,num_s,num_e);
+                ,v_parent_schema,v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,num_s,num_e);
                 END IF;
 
                 num_s=num_e;
@@ -191,16 +187,16 @@ ELSIF  p_type = 'list' THEN
 
 
 ELSIF  p_type = 'hash' THEN
-        v_k := p_interval::int;
+        v_int := p_interval::int;
         IF p_fk_cols is not null THEN
-            for num_s in 0..v_k-1 loop
+            for num_s in 0..v_int-1 loop
             execute FORMAT('CREATE TABLE IF NOT EXISTS %s_%s PARTITION OF %s( CONSTRAINT %s_%s_pkey PRIMARY KEY (%s)) 
-             FOR VALUES WITH (modulus %s, remainder %s)',v_parent_tablename,num_s,p_parent_table,v_parent_tablename,num_s,p_fk_cols,v_k,num_s);
+             FOR VALUES WITH (modulus %s, remainder %s)',v_parent_tablename,num_s,p_parent_table,v_parent_tablename,num_s,p_fk_cols,v_int,num_s);
             end loop;
         ELSE
-            for num_s in 0..v_k-1 loop
+            for num_s in 0..v_int-1 loop
             execute FORMAT('CREATE TABLE IF NOT EXISTS %s_%s PARTITION OF %s 
-            FOR VALUES WITH (modulus %s, remainder %s)',v_parent_tablename,num_s,p_parent_table,v_k,num_s);
+            FOR VALUES WITH (modulus %s, remainder %s)',v_parent_tablename,num_s,p_parent_table,v_int,num_s);
             end loop;
        --
     END IF;
