@@ -1,5 +1,5 @@
 create or replace function create_sub_partiton(
-     p_parent_table text,
+     p_parent_table text, --partition table
       p_part_col text,--partition COLUMN
       p_type text,  -- partition type range,list, hash
       p_interval text, --time:  daily, monthly,yearly , id : 10,1000 any range, list = 'a,b,c,d', maduler = 5,10,20 etc
@@ -97,6 +97,10 @@ end if;
 IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
 RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
 end if; 
+
+IF p_type = 'hash' and  p_interval ~ '^[0-9]+$' != true  then
+RAISE EXCEPTION 'This is HASH partition. Accepatable value''s for p_interval("p_sub_part_interval") is number. Ex: 5 or 10 or 20 or 30, based how many hash paritioned tables required.';
+end if;
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
