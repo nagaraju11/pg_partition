@@ -1,7 +1,7 @@
 # pg_partition
 
 
-Here two steps to create partition using these functions.
+Here steps to create partition using these functions.Create these two fuctions in same schema. 
 
 1. Create function #`sub_partition.sql`
 2. create function #`create_partition_tables.sql`
