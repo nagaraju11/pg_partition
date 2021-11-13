@@ -2,7 +2,7 @@
 
 -- DROP FUNCTION IF EXISTS public.create_partiton(text, text, text, text, integer, text, boolean, text, text, text);
 
-CREATE OR REPLACE FUNCTION public.create_partiton(
+CREATE OR REPLACE FUNCTION naga.create_partiton(
 	p_parent_table text,
 	p_part_col text,
 	p_type text,
@@ -13,7 +13,7 @@ CREATE OR REPLACE FUNCTION public.create_partiton(
 	p_sub_part_col text DEFAULT NULL::text,
 	p_sub_part_type text DEFAULT NULL::text,
 	p_sub_part_interval text DEFAULT NULL::text)
-    RETURNS void
+    RETURNS text
     LANGUAGE 'plpgsql'
     COST 100
     VOLATILE PARALLEL UNSAFE
@@ -23,9 +23,8 @@ DECLARE
       num_s bigint;
       num_e bigint;
       chk_cond text;
-      chk_boolean boolean;
-      v_partition_col text;
-      m_table1 text;
+	  chk_boolean boolean;
+	  v_partition_col text;
       end_date date;
       v_int int;
       v_start_time date;
@@ -41,11 +40,21 @@ DECLARE
       v_sql_default text;
       v_sql_default_pk text;
       v_new_tablename text;
-	  
+      v_fun_schema text;
+      v_sub_func_name text;
+	  v_sub_func_args text;
       
 BEGIN
 
 v_start_time := current_date;
+
+v_fun_schema := CURRENT_SCHEMA;
+
+
+v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
+                ,v_parent_tablename, p_parent_table);  --  create default partition table
+v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
+                ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
 
 -- check tables existence
 
@@ -94,14 +103,11 @@ IF p_type not like chk_cond  then
 RAISE EXCEPTION 'Parent table is  partitioned with %. p_type values must be %.!!',chk_cond,chk_cond;
 end if;
 
-v_sql_default := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s default'
-                ,v_parent_tablename, p_parent_table);  --  create default partition table
-v_sql_default_pk := FORMAT( 'CREATE TABLE  IF NOT EXISTS %s_default PARTITION OF %s (CONSTRAINT %s_pkey PRIMARY KEY (%s))default'
-                ,v_parent_tablename, p_parent_table,v_parent_tablename,p_fk_cols);  --  create default partition table
 
 IF v_control_type = 'date' AND p_interval not in ('daily', 'monthly','yearly') then
 RAISE EXCEPTION 'This is date range partition. Accepatable interval values for p_interval : daily, monthly,yearly';
 end if;
+
 
 IF v_control_type = 'id' and  p_interval ~ '^[0-9]+$' != true  then
 RAISE EXCEPTION 'This is ID range partition. Accepatable interval values for p_interval values should be numbers. Ex: 1000,2000,3000';
@@ -110,6 +116,18 @@ end if;
 IF p_type = 'hash' and  p_interval ~ '^[0-9]+$' != true  then
 RAISE EXCEPTION 'This is HASH partition. Accepatable value''s for p_interval is numeric number. Ex: 5 or 10 or 20 or 30, based how many hash paritioned tables required.';
 end if;
+
+
+SELECT n.nspname||'.'||p.proname as "Name",
+  pg_catalog.pg_get_function_arguments(p.oid) as "Argument_data_types" INTO v_sub_func_name,v_sub_func_args
+FROM pg_catalog.pg_proc p
+     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
+where p.proname = 'create_sub_partiton';
+
+IF p_sub_partition is TRUE and v_sub_func_name is null THEN
+RAISE EXCEPTION 'Sub partition function does not exist or created in diffenet schema. create_partiton() and create_sub_partiton() should be exists in same schema';
+END IF;
+
 
 IF p_type = 'range' THEN
         IF v_control_type = 'time' then
@@ -163,10 +181,11 @@ IF p_type = 'range' THEN
                              v_new_tablename  := p_parent_table||'_p'||to_char(v_start_time,'YYYY_MM')::text;
                              
                                 EXECUTE  v_sql_default_pk;
-                             
+                                raise info '%',v_fun_schema;
                                 EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                                                   FOR VALUES FROM (%L) TO (%L) PARTITION BY %s (%s)',v_new_tablename, p_parent_table,v_start_time,end_date,p_sub_part_type,p_sub_part_col);
-                                 execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
+                                 execute FORMAT('select %s(%L,%L,%L,%L,%L,%s)'
+                                                                                    ,v_sub_func_name
                                                                                     , v_new_tablename 
                                                                                     ,p_sub_part_col
                                                                                     ,p_sub_part_type 
@@ -215,7 +234,8 @@ IF p_type = 'range' THEN
                         EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%s) TO (%s) PARTITION BY %s (%s)'
                         ,v_new_tablename, p_parent_table,num_s,num_e,p_sub_part_type,p_sub_part_col);
 
-                        execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
+                        execute FORMAT('select %s(%L,%L,%L,%L,%L,%s)'
+                        , v_sub_func_name
                         , v_new_tablename 
                         ,p_sub_part_col
                         ,p_sub_part_type 
@@ -255,8 +275,9 @@ ELSIF  p_type = 'list' THEN
          EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s  FOR VALUES IN (%L) PARTITION BY %s (%s)'
          ,v_parent_tablename,p_parent_table,v_list,p_fk_cols,v_list,p_sub_part_type,p_sub_part_col);
          
-         execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
-                        , v_parent_tablename 
+         execute FORMAT('select %s(%L,%L,%L,%L,%L,%s)'
+                        ,v_sub_func_name
+                        ,v_parent_tablename 
                         ,p_sub_part_col
                         ,p_sub_part_type 
                         ,p_sub_part_interval 
@@ -285,16 +306,16 @@ ELSIF  p_type = 'hash' THEN
         ELSE
                 for num_s in 0..v_int-1 loop
                 v_new_tablename :=v_parent_schema||'.'||v_parent_tablename||'_'||num_s;
-
                 EXECUTE FORMAT('CREATE TABLE IF NOT EXISTS %s PARTITION OF %s FOR VALUES WITH (modulus %s, remainder %s) PARTITION BY %s (%s)'
                                                    ,v_new_tablename,p_parent_table,v_int,num_s,p_sub_part_type,p_sub_part_col);
-                execute FORMAT('select create_sub_partiton(%L,%L,%L,%L,%L,%s)'
-                , v_new_tablename ,p_sub_part_col,p_sub_part_type ,p_sub_part_interval ,p_fk_cols,p_premake);
+                execute FORMAT('select %s(%L,%L,%L,%L,%L,%s)'
+                ,v_sub_func_name, v_new_tablename ,p_sub_part_col,p_sub_part_type ,p_sub_part_interval ,p_fk_cols,p_premake);
                 
                 end loop;
 
         END IF;
 END IF;
 
+RETURN 'Partition creation done';
 END;
 $BODY$;
