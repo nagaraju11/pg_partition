@@ -213,18 +213,43 @@ IF p_type = 'range' THEN
         ELSE     -- id
             v_intervel := p_interval::int;
             num_s = v_intervel;
-            
+            v_new_tablename = p_parent_table||'_min_'||num_s;
+
+            IF p_sub_partition IS FALSE THEN
+                IF p_fk_cols is null then
+                    
+                    EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (MINVALUE) TO (%s)'
+                    ,v_new_tablename, p_parent_table,num_s);
+                ELSE
+                    
+                    EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
+                    ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (MINVALUE) TO (%s)'
+                    ,v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,num_s);
+                END IF;
+            ELSE
+                    EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (MINVALUE) TO (%s) PARTITION BY %s (%s)'
+                        ,v_new_tablename, p_parent_table,num_s,p_sub_part_type,p_sub_part_col);
+                 execute FORMAT('select %s(%L,%L,%L,%L,%L,%s)'
+                        , v_sub_func_name
+                        , v_new_tablename 
+                        ,p_sub_part_col
+                        ,p_sub_part_type 
+                        ,p_sub_part_interval 
+                        ,p_fk_cols
+                        ,p_premake);
+            END IF;
+
             IF p_sub_partition IS FALSE THEN
                     for v_int in 1..p_premake loop
                         num_e=num_s+v_intervel;
                         v_new_tablename = p_parent_table||'_p'||num_s;
 
                         IF p_fk_cols is null then
-                        EXECUTE  v_sql_default;
+                       -- EXECUTE  v_sql_default;
                         EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
                         ,v_new_tablename, p_parent_table,num_s,num_e);
                         ELSE
-                        EXECUTE  v_sql_default_pk;
+                        --EXECUTE  v_sql_default_pk;
                         EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                         ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
                         ,v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,num_s,num_e);
