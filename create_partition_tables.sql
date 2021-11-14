@@ -88,7 +88,7 @@ AND c.relname = v_parent_tablename::name
 AND a.attname = p_part_col::name;
 
 IF v_parent_tablename IS NULL THEN
-            RAISE EXCEPTION '42P01 : Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
+            RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
 END IF;
 
 select partition_type,partition_key into chk_cond,v_partition_col from (
