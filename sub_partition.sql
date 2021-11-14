@@ -1,4 +1,4 @@
-create or replace function create_sub_partiton(
+create or replace function naga.create_sub_partiton(
      p_parent_table text, --partition table
       p_part_col text,--partition COLUMN
       p_type text,  -- partition type range,list, hash
@@ -60,7 +60,7 @@ AND c.relname = v_parent_tablename::name
 AND a.attname = p_part_col::name;
 
 IF v_parent_tablename IS NULL THEN
-            RAISE EXCEPTION 'Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
+            RAISE EXCEPTION '42P01 : Unable to find given parent table in system catalogs. Please create parent table first, Ex: CREATE TABLE % () PARTITION BY % (%);', p_parent_table,p_type,p_part_col;
 END IF;
 
 select partition_type,partition_key into chk_cond,v_partition_col from (
@@ -152,13 +152,13 @@ IF p_type = 'range' THEN
 
                 IF p_fk_cols is null then
                 EXECUTE  v_sql_default;
-                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,v_new_tablename, p_parent_table,num_s,num_e);
+                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s FOR VALUES FROM (%s) TO (%s)'
+                ,v_new_tablename, p_parent_table,num_s,num_e);
                 ELSE
                 EXECUTE  v_sql_default_pk;
-                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s.%s PARTITION OF %s 
+                EXECUTE FORMAT( 'CREATE TABLE  IF NOT EXISTS %s PARTITION OF %s 
                 ( CONSTRAINT %s_pkey PRIMARY KEY (%s) ) FOR VALUES FROM (%s) TO (%s)'
-                ,v_parent_schema,v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,num_s,num_e);
+                ,v_new_tablename, p_parent_table,v_new_tablename,p_fk_cols,num_s,num_e);
                 END IF;
 
                 num_s=num_e;
